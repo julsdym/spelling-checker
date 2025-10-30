@@ -18,8 +18,6 @@ typedef struct {
     int capacity;
 } Dictionary;
 
-// ---------------- Dictionary Functions ----------------
-
 Dictionary *create_dictionary() {
     Dictionary *dict = malloc(sizeof(Dictionary));
     dict->capacity = INITIAL_DICT_SIZE;
@@ -52,8 +50,6 @@ void free_dictionary(Dictionary *dict) {
     free(dict);
 }
 
-// ---------------- Helper Functions ----------------
-
 void normalize_word(const char *word, char *normalized) {
     int i = 0;
     while (word[i]) {
@@ -65,8 +61,6 @@ void normalize_word(const char *word, char *normalized) {
     }
     normalized[i] = '\0';
 }
-
-// ---------------- Dictionary Loading ----------------
 
 Dictionary *load_dictionary(const char *filename) {
     int fd = open(filename, O_RDONLY);
@@ -109,8 +103,6 @@ Dictionary *load_dictionary(const char *filename) {
     sort_dictionary(dict);
     return dict;
 }
-
-// ---------------- Core Checking ----------------
 
 int word_in_dictionary(Dictionary *dict, const char *word) {
     char normalized[MAX_WORD_LEN];
@@ -247,8 +239,6 @@ int check_directory(Dictionary *dict, const char *path, const char *suffix, int 
     closedir(dir);
     return 0;
 }
-
-// ---------------- Main ----------------
 
 int main(int argc, char *argv[]) {
     if (argc < 2) {

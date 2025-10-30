@@ -13,7 +13,12 @@
 #define INITIAL_DICT_SIZE 1000
 
 typedef struct {
-    char **words;
+    char *original;  
+    char *normalized; 
+} DictEntry;
+
+typedef struct {
+    DictEntry *entries;
     int count;
     int capacity;
 } Dictionary;
@@ -21,33 +26,9 @@ typedef struct {
 Dictionary *create_dictionary() {
     Dictionary *dict = malloc(sizeof(Dictionary));
     dict->capacity = INITIAL_DICT_SIZE;
-    dict->words = malloc(dict->capacity * sizeof(char *));
+    dict->entries = malloc(dict->capacity * sizeof(DictEntry));
     dict->count = 0;
     return dict;
-}
-
-void add_word(Dictionary *dict, const char *word) {
-    if (dict->count >= dict->capacity) {
-        dict->capacity *= 2;
-        dict->words = realloc(dict->words, dict->capacity * sizeof(char *));
-    }
-    dict->words[dict->count++] = strdup(word);
-}
-
-int compare_strings(const void *a, const void *b) {
-    return strcmp(*(const char **)a, *(const char **)b);
-}
-
-void sort_dictionary(Dictionary *dict) {
-    qsort(dict->words, dict->count, sizeof(char *), compare_strings);
-}
-
-void free_dictionary(Dictionary *dict) {
-    for (int i = 0; i < dict->count; i++) {
-        free(dict->words[i]);
-    }
-    free(dict->words);
-    free(dict);
 }
 
 void normalize_word(const char *word, char *normalized) {
@@ -60,6 +41,36 @@ void normalize_word(const char *word, char *normalized) {
         i++;
     }
     normalized[i] = '\0';
+}
+
+void add_word(Dictionary *dict, const char *word) {
+    if (dict->count >= dict->capacity) {
+        dict->capacity *= 2;
+        dict->entries = realloc(dict->entries, dict->capacity * sizeof(DictEntry));
+    }
+    dict->entries[dict->count].original = strdup(word);
+    dict->entries[dict->count].normalized = malloc(strlen(word) + 1);
+    normalize_word(word, dict->entries[dict->count].normalized);
+    dict->count++;
+}
+
+int compare_entries(const void *a, const void *b) {
+    const DictEntry *ea = (const DictEntry *)a;
+    const DictEntry *eb = (const DictEntry *)b;
+    return strcmp(ea->normalized, eb->normalized);
+}
+
+void sort_dictionary(Dictionary *dict) {
+    qsort(dict->entries, dict->count, sizeof(DictEntry), compare_entries);
+}
+
+void free_dictionary(Dictionary *dict) {
+    for (int i = 0; i < dict->count; i++) {
+        free(dict->entries[i].original);
+        free(dict->entries[i].normalized);
+    }
+    free(dict->entries);
+    free(dict);
 }
 
 Dictionary *load_dictionary(const char *filename) {
@@ -81,9 +92,7 @@ Dictionary *load_dictionary(const char *filename) {
             if (c == '\n' || c == '\r') {
                 if (word_len > 0) {
                     word[word_len] = '\0';
-                    char lower[MAX_WORD_LEN];
-                    normalize_word(word, lower);
-                    add_word(dict, lower);
+                    add_word(dict, word);
                     word_len = 0;
                 }
             } else if (word_len < MAX_WORD_LEN - 1) {
@@ -94,28 +103,82 @@ Dictionary *load_dictionary(const char *filename) {
 
     if (word_len > 0) {
         word[word_len] = '\0';
-        char lower[MAX_WORD_LEN];
-        normalize_word(word, lower);
-        add_word(dict, lower);
+        add_word(dict, word);
     }
 
     close(fd);
     sort_dictionary(dict);
     return dict;
 }
+int is_valid_capitalization(const char *dict_word, const char *input_word) {
+    int len = strlen(dict_word);
+    if (len != strlen(input_word)) return 0;
+    int dict_has_lowercase = 0;
+    int dict_has_uppercase = 0;
+    for (int i = 0; i < len; i++) {
+        if (islower((unsigned char)dict_word[i])) dict_has_lowercase = 1;
+        if (isupper((unsigned char)dict_word[i])) dict_has_uppercase = 1;
+    }
+    int input_all_uppercase = 1;
+    for (int i = 0; i < len; i++) {
+        if (isalpha((unsigned char)input_word[i]) && !isupper((unsigned char)input_word[i])) {
+            input_all_uppercase = 0;
+            break;
+        }
+    }
+    if (dict_has_lowercase && dict_has_uppercase && input_all_uppercase) {
+        return 0;
+    }
+    
+    for (int i = 0; i < len; i++) {
+        char d = dict_word[i];
+        char inp = input_word[i];
+        if (!isalpha((unsigned char)d)) {
+            if (d != inp) return 0;
+            continue;
+        }
+        if (tolower((unsigned char)d) != tolower((unsigned char)inp)) {
+            return 0;
+        }
+        if (isupper((unsigned char)d) && !isupper((unsigned char)inp)) {
+            return 0;
+        }
+    }
+    return 1;
+}
 
 int word_in_dictionary(Dictionary *dict, const char *word) {
     char normalized[MAX_WORD_LEN];
     normalize_word(word, normalized);
-
     int left = 0, right = dict->count - 1;
+    int found_idx = -1;
+    
     while (left <= right) {
         int mid = left + (right - left) / 2;
-        int cmp = strcmp(normalized, dict->words[mid]);
-        if (cmp == 0) return 1;
+        int cmp = strcmp(normalized, dict->entries[mid].normalized);
+        if (cmp == 0) {
+            found_idx = mid;
+            break;
+        }
         else if (cmp < 0) right = mid - 1;
         else left = mid + 1;
     }
+    
+    if (found_idx == -1) {
+        return 0;
+    }
+    int start_idx = found_idx;
+    while (start_idx > 0 && strcmp(normalized, dict->entries[start_idx - 1].normalized) == 0) {
+        start_idx--;
+    }
+    int idx = start_idx;
+    while (idx < dict->count && strcmp(normalized, dict->entries[idx].normalized) == 0) {
+        if (is_valid_capitalization(dict->entries[idx].original, word)) {
+            return 1;
+        }
+        idx++;
+    }
+    
     return 0;
 }
 

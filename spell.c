@@ -8,20 +8,24 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 
+
 #define MAX_WORD_LEN 256
 #define BUFFER_SIZE 4096
 #define INITIAL_DICT_SIZE 1000
 
+
 typedef struct {
     char *original;  
-    char *normalized; 
+    char *normalized;
 } DictEntry;
+
 
 typedef struct {
     DictEntry *entries;
     int count;
     int capacity;
 } Dictionary;
+
 
 Dictionary *create_dictionary() {
     Dictionary *dict = malloc(sizeof(Dictionary));
@@ -30,6 +34,7 @@ Dictionary *create_dictionary() {
     dict->count = 0;
     return dict;
 }
+
 
 void normalize_word(const char *word, char *normalized) {
     int i = 0;
@@ -43,6 +48,7 @@ void normalize_word(const char *word, char *normalized) {
     normalized[i] = '\0';
 }
 
+
 void add_word(Dictionary *dict, const char *word) {
     if (dict->count >= dict->capacity) {
         dict->capacity *= 2;
@@ -54,15 +60,18 @@ void add_word(Dictionary *dict, const char *word) {
     dict->count++;
 }
 
+
 int compare_entries(const void *a, const void *b) {
     const DictEntry *ea = (const DictEntry *)a;
     const DictEntry *eb = (const DictEntry *)b;
     return strcmp(ea->normalized, eb->normalized);
 }
 
+
 void sort_dictionary(Dictionary *dict) {
     qsort(dict->entries, dict->count, sizeof(DictEntry), compare_entries);
 }
+
 
 void free_dictionary(Dictionary *dict) {
     for (int i = 0; i < dict->count; i++) {
@@ -73,6 +82,7 @@ void free_dictionary(Dictionary *dict) {
     free(dict);
 }
 
+
 Dictionary *load_dictionary(const char *filename) {
     int fd = open(filename, O_RDONLY);
     if (fd < 0) {
@@ -80,11 +90,13 @@ Dictionary *load_dictionary(const char *filename) {
         return NULL;
     }
 
+
     Dictionary *dict = create_dictionary();
     char buffer[BUFFER_SIZE];
     char word[MAX_WORD_LEN];
     int word_len = 0;
     ssize_t bytes_read;
+
 
     while ((bytes_read = read(fd, buffer, BUFFER_SIZE)) > 0) {
         for (ssize_t i = 0; i < bytes_read; i++) {
@@ -101,26 +113,28 @@ Dictionary *load_dictionary(const char *filename) {
         }
     }
 
+
     if (word_len > 0) {
         word[word_len] = '\0';
         add_word(dict, word);
     }
+
 
     close(fd);
     sort_dictionary(dict);
     return dict;
 }
 int is_valid_capitalization(const char *dict_word, const char *input_word) {
-    int len = strlen(dict_word);
+    size_t len = strlen(dict_word);  // Change int to size_t
     if (len != strlen(input_word)) return 0;
     int dict_has_lowercase = 0;
     int dict_has_uppercase = 0;
-    for (int i = 0; i < len; i++) {
+    for (size_t i = 0; i < len; i++) {  // Also change i to size_t
         if (islower((unsigned char)dict_word[i])) dict_has_lowercase = 1;
         if (isupper((unsigned char)dict_word[i])) dict_has_uppercase = 1;
     }
     int input_all_uppercase = 1;
-    for (int i = 0; i < len; i++) {
+    for (size_t i = 0; i < len; i++) {  // Change i to size_t here too
         if (isalpha((unsigned char)input_word[i]) && !isupper((unsigned char)input_word[i])) {
             input_all_uppercase = 0;
             break;
@@ -129,8 +143,8 @@ int is_valid_capitalization(const char *dict_word, const char *input_word) {
     if (dict_has_lowercase && dict_has_uppercase && input_all_uppercase) {
         return 0;
     }
-    
-    for (int i = 0; i < len; i++) {
+   
+    for (size_t i = 0; i < len; i++) {  // And here
         char d = dict_word[i];
         char inp = input_word[i];
         if (!isalpha((unsigned char)d)) {
@@ -147,12 +161,13 @@ int is_valid_capitalization(const char *dict_word, const char *input_word) {
     return 1;
 }
 
+
 int word_in_dictionary(Dictionary *dict, const char *word) {
     char normalized[MAX_WORD_LEN];
     normalize_word(word, normalized);
     int left = 0, right = dict->count - 1;
     int found_idx = -1;
-    
+   
     while (left <= right) {
         int mid = left + (right - left) / 2;
         int cmp = strcmp(normalized, dict->entries[mid].normalized);
@@ -163,7 +178,7 @@ int word_in_dictionary(Dictionary *dict, const char *word) {
         else if (cmp < 0) right = mid - 1;
         else left = mid + 1;
     }
-    
+   
     if (found_idx == -1) {
         return 0;
     }
@@ -178,9 +193,10 @@ int word_in_dictionary(Dictionary *dict, const char *word) {
         }
         idx++;
     }
-    
+   
     return 0;
 }
+
 
 int is_all_digits_or_symbols(const char *word) {
     for (int i = 0; word[i]; i++) {
@@ -189,10 +205,12 @@ int is_all_digits_or_symbols(const char *word) {
     return 1;
 }
 
+
 const char *strip_leading_punctuation(const char *word) {
     while (*word && strchr("([{\'\"", *word)) word++;
     return word;
 }
+
 
 void strip_trailing_punctuation(char *word) {
     int len = strlen(word);
@@ -200,17 +218,21 @@ void strip_trailing_punctuation(char *word) {
     word[len] = '\0';
 }
 
+
 void check_word(Dictionary *dict, const char *word, const char *filename,
                 int line, int col, int *error_found) {
     if (strlen(word) == 0) return;
     if (is_all_digits_or_symbols(word)) return;
+
 
     char processed[MAX_WORD_LEN];
     const char *stripped = strip_leading_punctuation(word);
     strcpy(processed, stripped);
     strip_trailing_punctuation(processed);
 
+
     if (strlen(processed) == 0 || is_all_digits_or_symbols(processed)) return;
+
 
     if (!word_in_dictionary(dict, processed)) {
         if (filename)
@@ -221,6 +243,7 @@ void check_word(Dictionary *dict, const char *word, const char *filename,
     }
 }
 
+
 int check_file(Dictionary *dict, const char *filename, int show_filename) {
     int fd = (filename == NULL) ? STDIN_FILENO : open(filename, O_RDONLY);
     if (fd < 0) {
@@ -228,15 +251,18 @@ int check_file(Dictionary *dict, const char *filename, int show_filename) {
         return 1;
     }
 
+
     char buffer[BUFFER_SIZE];
     char word[MAX_WORD_LEN];
     int word_len = 0, line = 1, col = 1, word_col = 1;
     ssize_t bytes_read;
     int error_found = 0;
 
+
     while ((bytes_read = read(fd, buffer, BUFFER_SIZE)) > 0) {
         for (ssize_t i = 0; i < bytes_read; i++) {
             char c = buffer[i];
+
 
             if (isspace((unsigned char)c)) {
                 if (word_len > 0) {
@@ -259,15 +285,18 @@ int check_file(Dictionary *dict, const char *filename, int show_filename) {
         }
     }
 
+
     if (word_len > 0) {
         word[word_len] = '\0';
         check_word(dict, word, show_filename ? filename : NULL,
                    line, word_col, &error_found);
     }
 
+
     if (filename != NULL) close(fd);
     return error_found;
 }
+
 
 int check_directory(Dictionary *dict, const char *path, const char *suffix, int *error_found) {
     DIR *dir = opendir(path);
@@ -276,15 +305,19 @@ int check_directory(Dictionary *dict, const char *path, const char *suffix, int 
         return 1;
     }
 
+
     struct dirent *entry;
     while ((entry = readdir(dir)) != NULL) {
         if (entry->d_name[0] == '.') continue;
 
+
         char fullpath[1024];
         snprintf(fullpath, sizeof(fullpath), "%s/%s", path, entry->d_name);
 
+
         struct stat st;
         if (stat(fullpath, &st) != 0) continue;
+
 
         if (S_ISDIR(st.st_mode)) {
             check_directory(dict, fullpath, suffix, error_found);
@@ -299,9 +332,11 @@ int check_directory(Dictionary *dict, const char *path, const char *suffix, int 
         }
     }
 
+
     closedir(dir);
     return 0;
 }
+
 
 int main(int argc, char *argv[]) {
     if (argc < 2) {
@@ -309,8 +344,10 @@ int main(int argc, char *argv[]) {
         return EXIT_FAILURE;
     }
 
+
     const char *suffix = ".txt";
     int arg_idx = 1;
+
 
     if (strcmp(argv[arg_idx], "-s") == 0) {
         if (arg_idx + 1 >= argc) {
@@ -321,16 +358,20 @@ int main(int argc, char *argv[]) {
         arg_idx += 2;
     }
 
+
     if (arg_idx >= argc) {
         fprintf(stderr, "Error: Dictionary file required\n");
         return EXIT_FAILURE;
     }
 
+
     const char *dict_file = argv[arg_idx++];
     Dictionary *dict = load_dictionary(dict_file);
     if (!dict) return EXIT_FAILURE;
 
+
     int error_found = 0;
+
 
     if (arg_idx >= argc) {
         if (check_file(dict, NULL, 0))
@@ -353,6 +394,9 @@ int main(int argc, char *argv[]) {
         }
     }
 
+
     free_dictionary(dict);
     return error_found ? EXIT_FAILURE : EXIT_SUCCESS;
 }
+
+
